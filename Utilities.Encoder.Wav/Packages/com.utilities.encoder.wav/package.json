@@ -1,0 +1,27 @@
+{
+  "name": "com.utilities.encoder.wav",
+  "displayName": "WAV Encoder",
+  "description": "Simple library for WAV encoding support.",
+  "keywords": [],
+  "version": "1.0.0-preview.1",
+  "unity": "2021.3",
+  "documentationUrl": "https://github.com/StephenHodgson/com.utilities.encoder.wav#documentation",
+  "changelogUrl": "https://github.com/StephenHodgson/com.utilities.encoder.wav/releases",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "repository": "https://github.com/StephenHodgson/com.utilities.encoder.wav.git"
+  },
+  "author": {
+    "name": "StephenHodgson",
+    "url": "https://github.com/StephenHodgson"
+  },
+  "dependencies": {
+    "com.unity.modules.audio": "1.0.0",
+    "com.unity.modules.unitywebrequestaudio": "1.0.0",
+    "com.utilities.async": "1.2.0"
+  },
+  "publishConfig": {
+    "registry": "https://package.openupm.com"
+  }
+}

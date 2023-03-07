@@ -1,6 +1,9 @@
 {
-    "name": "ProjectScope.ProjectName.Editor",
-    "references": [],
+    "name": "Utilities.Encoding.Wav.Editor",
+    "rootNamespace": "Utilities.Encoding.Wav.Editor",
+    "references": [
+        "GUID:f7a0d77b5e1d79742a738fb859ee2f28"
+    ],
     "includePlatforms": [
         "Editor"
     ],
