@@ -82,7 +82,5 @@ _ReSharper.Caches
 artifacts/
 StreamingAssets/
 StreamingAssets.meta
-
-# ====================== #
-# Project Specific Links #
-# ====================== #
+Utilities.Encoder.Wav/Assets/Plugins
+Utilities.Encoder.Wav/Assets/Plugins.meta
