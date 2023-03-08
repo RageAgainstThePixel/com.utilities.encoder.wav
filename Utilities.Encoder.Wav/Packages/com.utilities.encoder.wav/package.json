@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "com.utilities.async": "1.2.0",
-    "com.utilities.audio": "1.0.0-preview.3"
+    "com.utilities.audio": "1.0.0-preview.4"
   },
   "publishConfig": {
     "registry": "https://package.openupm.com"
