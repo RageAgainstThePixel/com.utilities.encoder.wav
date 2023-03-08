@@ -5,12 +5,12 @@
   "keywords": [],
   "version": "1.0.0-preview.1",
   "unity": "2021.3",
-  "documentationUrl": "https://github.com/StephenHodgson/com.utilities.encoder.wav#documentation",
-  "changelogUrl": "https://github.com/StephenHodgson/com.utilities.encoder.wav/releases",
+  "documentationUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav#documentation",
+  "changelogUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav/releases",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "repository": "https://github.com/StephenHodgson/com.utilities.encoder.wav.git"
+    "repository": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav.git"
   },
   "author": {
     "name": "Stephen Hodgson",
