@@ -10,7 +10,7 @@ Simple library for WAV encoding support in the [Unity](https://unity.com/) Game 
 
 - Open your Unity project settings
 - Select the `Package Manager`
-![scoped-registries](Utilities.Audio/Packages/com.utilities.encoder.wav/Documentation~/images/package-manager-scopes.png)
+![scoped-registries](Utilities.Encoder.Wav/Packages/com.utilities.encoder.wav/Documentation~/images/package-manager-scopes.png)
 - Add the OpenUPM package registry:
   - `Name: OpenUPM`
   - `URL: https://package.openupm.com`
