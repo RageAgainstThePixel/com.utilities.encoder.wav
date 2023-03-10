@@ -1,9 +1,9 @@
 {
   "name": "com.utilities.encoder.wav",
-  "displayName": "WAV Encoder",
+  "displayName": "Utilities.Encoder.Wav",
   "description": "Simple library for WAV encoding support.",
   "keywords": [],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "unity": "2021.3",
   "documentationUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav#documentation",
   "changelogUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav/releases",
@@ -17,8 +17,8 @@
     "url": "https://github.com/StephenHodgson"
   },
   "dependencies": {
-    "com.utilities.async": "1.2.0",
-    "com.utilities.audio": "1.0.0"
+    "com.utilities.async": "1.2.1",
+    "com.utilities.audio": "1.0.1"
   },
   "publishConfig": {
     "registry": "https://package.openupm.com"
