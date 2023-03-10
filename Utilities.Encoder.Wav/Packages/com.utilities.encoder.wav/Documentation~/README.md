@@ -18,17 +18,22 @@ Simple library for WAV encoding support in the [Unity](https://unity.com/) Game 
     - `com.utilities`
 - Open the Unity Package Manager window
 - Change the Registry from Unity to `My Registries`
-- Add the `WAV Encoder` package
+- Add the `Utilities.Encoder.Wav` package
 
 ### Via Unity Package Manager and Git url
 
 - Open your Unity Package Manager
 - Add package from git url: `https://github.com/RageAgainstThePixel/com.utilities.encoder.wav.git#upm`
+  > Note: this repo has dependencies on other repositories! You are responsible for adding these on your own.
+  - [com.utilities.async](https://github.com/RageAgainstThePixel/com.utilities.async)
+  - [com.utilities.audio](https://github.com/RageAgainstThePixel/com.utilities.audio)
+
+---
 
 ## Documentation
 
-### Project Setup
+Simply add the `WavRecorderBehaviour` to any GameObject to enable recording.
 
-```csharp
-// TODO
-```
+## Related Packages
+
+- [Ogg Encoder](https://github.com/RageAgainstThePixel/com.utilities.encoder.ogg)
