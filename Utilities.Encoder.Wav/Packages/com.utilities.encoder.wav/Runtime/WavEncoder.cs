@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using UnityEngine;
 using Utilities.Async;
 using Utilities.Audio;
+using Microphone = Utilities.Audio.Microphone;
 
 namespace Utilities.Encoding.Wav
 {
