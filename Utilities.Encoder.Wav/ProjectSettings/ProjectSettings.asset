@@ -157,7 +157,7 @@ PlayerSettings:
     Android: com.utilities.encoder.wav
     Lumin: com.utilities.encoder.wav
     Standalone: com.utilities.encoder.wav
-    WebGL: com.RageAgainstThePixel.Audio
+    WebGL: com.utilities.encoder.wav
     iPhone: com.utilities.encoder.wav
   buildNumber:
     Standalone: 0
