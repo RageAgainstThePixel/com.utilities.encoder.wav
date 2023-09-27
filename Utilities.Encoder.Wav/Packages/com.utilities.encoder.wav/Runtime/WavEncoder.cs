@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
+using UnityEngine.Scripting;
 using Utilities.Async;
 using Utilities.Audio;
 using Microphone = Utilities.Audio.Microphone;
@@ -14,6 +15,9 @@ namespace Utilities.Encoding.Wav
 {
     public class WavEncoder : IEncoder
     {
+        [Preserve]
+        public WavEncoder() { }
+
         public async Task<Tuple<string, AudioClip>> StreamSaveToDiskAsync(AudioClip clip, string saveDirectory, CancellationToken cancellationToken, Action<Tuple<string, AudioClip>> callback = null, [CallerMemberName] string callingMethodName = null)
         {
             if (callingMethodName != nameof(RecordingManager.StartRecordingAsync))
