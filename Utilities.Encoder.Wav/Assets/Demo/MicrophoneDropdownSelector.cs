@@ -4,7 +4,7 @@ using UnityEngine;
 using Utilities.Audio;
 using Microphone = Utilities.Audio.Microphone;
 
-namespace Utilities.Encoder.Wav.Sample
+namespace Utilities.Encoder.Wav.Samples.Recording
 {
     [RequireComponent(typeof(TMP_Dropdown))]
     public class MicrophoneDropdownSelector : MonoBehaviour
