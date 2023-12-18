@@ -2,12 +2,16 @@
 
 namespace Utilities.Encoding.Wav
 {
-    public static class Constants
+    internal static class Constants
     {
         public const int WavHeaderSize = 44;
-        public const string RIFF = "RIFF";
-        public const string WAVE = "WAVE";
-        public const string FMT = "fmt ";
-        public const string DATA = "data";
+        private const string RIFF = "RIFF";
+        public static char[] RIFF_ARRAY { get; } = RIFF.ToCharArray();
+        private const string WAVE = "WAVE";
+        public static char[] WAVE_ARRAY { get; } = WAVE.ToCharArray();
+        private const string FMT = "fmt ";
+        public static char[] FMT_ARRAY { get; } = FMT.ToCharArray();
+        private const string DATA = "data";
+        public static char[] DATA_ARRAY { get; } = DATA.ToCharArray();
     }
 }

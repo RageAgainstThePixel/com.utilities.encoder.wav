@@ -72,13 +72,13 @@ namespace Utilities.Encoding.Wav
             try
             {
                 // Marks the file as a riff file. Characters are each 1 byte long.
-                writer.Write(Constants.RIFF.ToCharArray());
+                writer.Write(Constants.RIFF_ARRAY);
                 // Size of the overall file - 8 bytes, in bytes (32-bit integer).
                 writer.Write(0); // temp data
                 // File Type Header. For our purposes, it always equals “WAVE”.
-                writer.Write(Constants.WAVE.ToCharArray());
+                writer.Write(Constants.WAVE_ARRAY);
                 // Format chunk marker. Includes trailing null
-                writer.Write(Constants.FMT.ToCharArray());
+                writer.Write(Constants.FMT_ARRAY);
                 // Length of format data as listed above
                 writer.Write(16);
                 // Type of format (1 is PCM) - 2 byte integer
@@ -94,7 +94,7 @@ namespace Utilities.Encoding.Wav
                 // Bits per sample
                 writer.Write((ushort)16);
                 // “data” chunk header. Marks the beginning of the data section.
-                writer.Write(Constants.DATA.ToCharArray());
+                writer.Write(Constants.DATA_ARRAY);
                 // Size of the data section.
                 writer.Write(0); // temp data
 

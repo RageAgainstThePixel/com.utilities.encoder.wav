@@ -41,13 +41,13 @@ namespace Utilities.Encoding.Wav
             try
             {
                 // Marks the file as a riff file. Characters are each 1 byte long.
-                writer.Write(Constants.RIFF.ToCharArray());
+                writer.Write(Constants.RIFF_ARRAY);
                 // Size of the overall file - 8 bytes, in bytes (32-bit integer). Typically, you’d fill this in after creation.
-                writer.Write(Constants.WavHeaderSize + pcmData.Length - 8);
+                writer.Write(36 + pcmData.Length * 2);
                 // File Type Header. For our purposes, it always equals “WAVE”.
-                writer.Write(Constants.WAVE.ToCharArray());
+                writer.Write(Constants.WAVE_ARRAY);
                 // Format chunk marker. Includes trailing null
-                writer.Write(Constants.FMT.ToCharArray());
+                writer.Write(Constants.FMT_ARRAY);
                 // Length of format data as listed above
                 writer.Write(16);
                 // Type of format (1 is PCM) - 2 byte integer
@@ -63,7 +63,7 @@ namespace Utilities.Encoding.Wav
                 // Bits per sample
                 writer.Write((ushort)16);
                 // “data” chunk header. Marks the beginning of the data section.
-                writer.Write(Constants.DATA.ToCharArray());
+                writer.Write(Constants.DATA_ARRAY);
                 // Size of the data section.
                 writer.Write(pcmData.Length);
                 // The audio data
@@ -101,7 +101,7 @@ namespace Utilities.Encoding.Wav
             await Awaiters.UnityMainThread;
 
             // prep data
-            var frequency = audioClip.frequency;
+            var sampleRate = audioClip.frequency;
             var channels = audioClip.channels;
             var pcmData = audioClip.EncodeToPCM(PCMFormatSize.EightBit, trim);
 
@@ -115,13 +115,13 @@ namespace Utilities.Encoding.Wav
             try
             {
                 // Marks the file as a riff file. Characters are each 1 byte long.
-                writer.Write(Constants.RIFF.ToCharArray());
+                writer.Write(Constants.RIFF_ARRAY);
                 // Size of the overall file - 8 bytes, in bytes (32-bit integer). Typically, you’d fill this in after creation.
-                writer.Write(Constants.WavHeaderSize + pcmData.Length - 8);
+                writer.Write(36 + pcmData.Length - 8);
                 // File Type Header. For our purposes, it always equals “WAVE”.
-                writer.Write(Constants.WAVE.ToCharArray());
+                writer.Write(Constants.WAVE_ARRAY);
                 // Format chunk marker. Includes trailing null
-                writer.Write(Constants.FMT.ToCharArray());
+                writer.Write(Constants.FMT_ARRAY);
                 // Length of format data as listed above
                 writer.Write(16);
                 // Type of format (1 is PCM) - 2 byte integer
@@ -129,15 +129,15 @@ namespace Utilities.Encoding.Wav
                 // Number of Channels - 2 byte integer
                 writer.Write((ushort)channels);
                 // Sample Rate - 32 byte integer. Common values are 44100 (CD), 48000 (DAT). Sample Rate = Number of Samples per second, or Hertz.
-                writer.Write(frequency);
+                writer.Write(sampleRate);
                 // (Sample Rate * BitsPerSample * Channels) / 8.
-                writer.Write(frequency * channels * sizeof(short));
+                writer.Write(sampleRate * channels * sizeof(short));
                 // (BitsPerSample * Channels) / 8.1 - 8 bit mono2 - 8 bit stereo/16 bit mono4 - 16 bit stereo
                 writer.Write((ushort)(channels * sizeof(short)));
                 // Bits per sample
                 writer.Write((ushort)16);
                 // “data” chunk header. Marks the beginning of the data section.
-                writer.Write(Constants.DATA.ToCharArray());
+                writer.Write(Constants.DATA_ARRAY);
                 // Size of the data section.
                 writer.Write(pcmData.Length);
                 // The audio data
