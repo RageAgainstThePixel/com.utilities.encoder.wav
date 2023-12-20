@@ -2,12 +2,16 @@
 
 namespace Utilities.Encoding.Wav
 {
-    public static class Constants
+    internal static class Constants
     {
         public const int WavHeaderSize = 44;
-        public const string RIFF = "RIFF";
-        public const string WAVE = "WAVE";
-        public const string FMT = "fmt ";
-        public const string DATA = "data";
+        private const string RIFF = "RIFF";
+        public static readonly byte[] RIFF_BYTES = System.Text.Encoding.ASCII.GetBytes(RIFF);
+        private const string WAVE = "WAVE";
+        public static readonly byte[] WAVE_BYTES = System.Text.Encoding.ASCII.GetBytes(WAVE);
+        private const string FMT = "fmt ";
+        public static readonly byte[] FMT_BYTES = System.Text.Encoding.ASCII.GetBytes(FMT);
+        private const string DATA = "data";
+        public static readonly byte[] DATA_BYTES = System.Text.Encoding.ASCII.GetBytes(DATA);
     }
 }
