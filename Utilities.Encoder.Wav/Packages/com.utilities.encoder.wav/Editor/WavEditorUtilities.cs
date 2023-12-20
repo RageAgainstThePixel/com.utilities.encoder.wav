@@ -1,13 +1,13 @@
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
-using System.IO;
 using System;
+using System.IO;
 using UnityEditor;
 using UnityEngine;
 
 namespace Utilities.Encoding.Wav.Editor
 {
-    public class WavEditorUtilities
+    internal static class WavEditorUtilities
     {
         [MenuItem("CONTEXT/AudioClip/Convert to wav...", true)]
         public static bool ConvertToWavValidate(MenuCommand menuCommand)
