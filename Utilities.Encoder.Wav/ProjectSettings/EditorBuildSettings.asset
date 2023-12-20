@@ -4,5 +4,8 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 0
+    path: Packages/com.utilities.encoder.wav/Samples/WavRecording/SaveWavRecording.unity
+    guid: cf0e1373fd63bbf488c6c94f2a10ac23
   m_configObjects: {}

@@ -13,11 +13,61 @@ using Microphone = Utilities.Audio.Microphone;
 
 namespace Utilities.Encoding.Wav
 {
+    [Preserve]
     public class WavEncoder : IEncoder
     {
         [Preserve]
         public WavEncoder() { }
 
+        [Preserve]
+        internal static byte[] EncodeWav(byte[] pcmData, int channels, int sampleRate, int bitsPerSample)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream);
+
+            // We'll calculate the file size and protect against overflow.
+            int fileSize;
+            var blockAlign = bitsPerSample * channels / 8;
+            var bytesPerSecond = sampleRate * blockAlign;
+
+            checked
+            {
+                fileSize = 36 + pcmData.Length;
+            }
+
+            // Marks the file as a riff file. Characters are each 1 byte long.
+            writer.Write(Constants.RIFF_BYTES);
+            // Size of the overall file - 8 bytes, in bytes (32-bit integer). Typically, you’d fill this in after creation.
+            writer.Write(fileSize - 8); // Subtract the RIFF header (4 bytes) and file size field (4 bytes).
+            // File Type Header. For our purposes, it always equals “WAVE”.
+            writer.Write(Constants.WAVE_BYTES);
+            // Format chunk marker. Includes trailing null.
+            writer.Write(Constants.FMT_BYTES);
+            // Length of format data as listed above.
+            writer.Write(16);
+            // Type of format (1 is PCM) - 2 byte integer.
+            writer.Write((ushort)1);
+            // Number of Channels - 2 byte integer.
+            writer.Write((ushort)channels);
+            // Sample Rate - 32 byte integer.
+            writer.Write(sampleRate);
+            // Bytes per second.
+            writer.Write(bytesPerSecond);
+            // Block align.
+            writer.Write((ushort)blockAlign);
+            // Bits per sample.
+            writer.Write((ushort)bitsPerSample);
+            // “data” chunk header. Marks the beginning of the data section.
+            writer.Write(Constants.DATA_BYTES);
+            // Size of the data section.
+            writer.Write(pcmData.Length);
+            // The audio data
+            writer.Write(pcmData);
+            writer.Flush();
+            return stream.ToArray();
+        }
+
+        [Preserve]
         public async Task<Tuple<string, AudioClip>> StreamSaveToDiskAsync(AudioClip clip, string saveDirectory, CancellationToken cancellationToken, Action<Tuple<string, AudioClip>> callback = null, [CallerMemberName] string callingMethodName = null)
         {
             if (callingMethodName != nameof(RecordingManager.StartRecordingAsync))
@@ -42,16 +92,18 @@ namespace Utilities.Encoding.Wav
                 Debug.Log($"[{nameof(RecordingManager)}] Recording started...");
             }
 
-            int lastPosition;
+            var sampleCount = 0;
             var clipName = clip.name;
             var channels = clip.channels;
-            var frequency = clip.frequency;
-            var sampleCount = clip.samples;
-            var samples = new float[sampleCount * channels];
-            var readBuffer = new byte[samples.Length * sizeof(short)];
+            var sampleRate = clip.frequency;
+            var sampleBuffer = new float[clip.samples];
+            var maxSamples = RecordingManager.MaxRecordingLength * sampleRate;
+            var samples = new float[maxSamples];
 
-            // ReSharper disable once MethodSupportsCancellation
-            await Task.Delay(1).ConfigureAwait(false);
+            if (RecordingManager.EnableDebug)
+            {
+                Debug.Log($"[{nameof(RecordingManager)}] Initializing data for {clipName}. Channels: {channels}, Sample Rate: {sampleRate}, Sample buffer length: {sampleBuffer.Length}, Max Sample Length: {maxSamples}");
+            }
 
             if (!Directory.Exists(saveDirectory))
             {
@@ -62,142 +114,126 @@ namespace Utilities.Encoding.Wav
 
             if (File.Exists(path))
             {
-                Debug.LogWarning($"[{nameof(RecordingManager)}] {path} already exists, attempting to delete");
+                Debug.LogWarning($"[{nameof(RecordingManager)}] {path} already exists, attempting to delete...");
                 File.Delete(path);
             }
 
-            var outStream = new FileStream(path, FileMode.Create, FileAccess.Write);
-            var writer = new BinaryWriter(outStream);
+            var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write);
+            var writer = new BinaryWriter(fileStream);
 
             try
             {
-                // Marks the file as a riff file. Characters are each 1 byte long.
-                writer.Write(Constants.RIFF_ARRAY);
-                // Size of the overall file - 8 bytes, in bytes (32-bit integer).
-                writer.Write(0); // temp data
-                // File Type Header. For our purposes, it always equals “WAVE”.
-                writer.Write(Constants.WAVE_ARRAY);
-                // Format chunk marker. Includes trailing null
-                writer.Write(Constants.FMT_ARRAY);
-                // Length of format data as listed above
-                writer.Write(16);
-                // Type of format (1 is PCM) - 2 byte integer
-                writer.Write((ushort)1);
-                // Number of Channels - 2 byte integer
-                writer.Write((ushort)channels);
-                // Sample Rate - 32 byte integer. Common values are 44100 (CD), 48000 (DAT). Sample Rate = Number of Samples per second, or Hertz.
-                writer.Write(frequency);
-                // (Sample Rate * BitsPerSample * Channels) / 8.
-                writer.Write(frequency * channels * sizeof(short));
-                // (BitsPerSample * Channels) / 8.1 - 8 bit mono2 - 8 bit stereo/16 bit mono4 - 16 bit stereo
-                writer.Write((ushort)(channels * sizeof(short)));
-                // Bits per sample
-                writer.Write((ushort)16);
-                // “data” chunk header. Marks the beginning of the data section.
-                writer.Write(Constants.DATA_ARRAY);
-                // Size of the data section.
-                writer.Write(0); // temp data
-
-                lastPosition = Constants.WavHeaderSize;
-
+                // setup recording
                 var shouldStop = false;
+                var lastMicrophonePosition = 0;
 
-                while (true)
+                // initialize file header
+                var header = EncodeWav(Array.Empty<byte>(), channels, sampleRate, 16);
+                writer.Write(header);
+
+                try
                 {
-                    await Awaiters.UnityMainThread;
-                    var currentPosition = Microphone.GetPosition(null);
-
-                    // ReSharper disable once ConditionIsAlwaysTrueOrFalse
-                    if (clip != null)
+                    do
                     {
-                        clip.GetData(samples, 0);
-                    }
+                        // Expected to be on the Unity Main Thread.
+                        await Awaiters.UnityMainThread;
+                        var microphonePosition = Microphone.GetPosition(null);
 
-                    if (shouldStop)
-                    {
-                        Microphone.End(null);
-                    }
-
-                    // ReSharper disable once MethodSupportsCancellation
-                    await Task.Delay(1).ConfigureAwait(false);
-
-                    if (currentPosition != 0)
-                    {
-                        var sampleIndex = 0;
-                        var length = currentPosition - lastPosition;
-
-                        foreach (var pcm in samples)
+                        if (microphonePosition <= 0 && lastMicrophonePosition == 0)
                         {
-                            var sample = (short)(pcm * short.MaxValue);
-                            readBuffer[sampleIndex++] = (byte)(sample >> 0);
-                            readBuffer[sampleIndex++] = (byte)(sample >> 8);
+                            // Skip this iteration if there's no new data
+                            // wait for next update
+                            await Awaiters.UnityMainThread;
+                            continue;
                         }
 
-                        writer.Write(new ReadOnlySpan<byte>(readBuffer, lastPosition * sizeof(short), length * sizeof(short)));
-                        lastPosition = currentPosition;
-                    }
+                        var isLooping = microphonePosition < lastMicrophonePosition;
+                        int samplesToWrite;
 
-                    await Awaiters.UnityMainThread;
+                        if (isLooping)
+                        {
+                            // Microphone loopback detected.
+                            samplesToWrite = clip.samples - lastMicrophonePosition;
+
+                            if (RecordingManager.EnableDebug)
+                            {
+                                Debug.LogWarning($"[{nameof(RecordingManager)}] Microphone loopback detected! [{microphonePosition} < {lastMicrophonePosition}] samples to write: {samplesToWrite}");
+                            }
+                        }
+                        else
+                        {
+                            // No loopback, process normally.
+                            samplesToWrite = microphonePosition - lastMicrophonePosition;
+                        }
+
+                        if (samplesToWrite > 0)
+                        {
+                            // Handle the situation where we have a loopback.
+                            clip.GetData(sampleBuffer, 0);
+
+                            for (var i = 0; i < samplesToWrite; i++)
+                            {
+                                // Write pcm data to file.
+                                var bufferIndex = (lastMicrophonePosition + i) % clip.samples; // Wrap around index.
+                                var value = sampleBuffer[bufferIndex];
+                                var sample = (short)(Math.Max(-1f, Math.Min(1f, value)) * short.MaxValue);
+                                writer.Write((byte)(sample & byte.MaxValue));
+                                writer.Write((byte)((sample >> 8) & byte.MaxValue));
+
+                                // Store the sample in the final samples array.
+                                samples[sampleCount * channels + i] = sampleBuffer[bufferIndex];
+                            }
+
+                            lastMicrophonePosition = microphonePosition;
+                            sampleCount += samplesToWrite;
+
+                            if (RecordingManager.EnableDebug)
+                            {
+                                Debug.Log($"[{nameof(RecordingManager)}] State: {nameof(RecordingManager.IsRecording)}? {RecordingManager.IsRecording} | Wrote {samplesToWrite} samples | last mic pos: {lastMicrophonePosition} | total samples: {sampleCount} | isCancelled? {cancellationToken.IsCancellationRequested}");
+                            }
+                        }
+
+                        // Check if we have recorded enough samples or if cancellation has been requested
+                        if (sampleCount >= maxSamples || cancellationToken.IsCancellationRequested)
+                        {
+                            // Finalize the WAV file and cleanup
+                            shouldStop = true;
+                        }
+                    } while (!shouldStop);
+                }
+                finally
+                {
+                    RecordingManager.IsRecording = false;
+                    Microphone.End(null);
 
                     if (RecordingManager.EnableDebug)
                     {
-                        Debug.Log($"[{nameof(RecordingManager)}] State: {nameof(RecordingManager.IsRecording)}? {RecordingManager.IsRecording} | {currentPosition} | isCancelled? {cancellationToken.IsCancellationRequested}");
+                        Debug.Log($"[{nameof(RecordingManager)}] Recording stopped, writing end of stream...");
                     }
 
-                    if (currentPosition == sampleCount ||
-                        cancellationToken.IsCancellationRequested)
+                    var fileSize = fileStream.Position;
+                    // rewind and write header file size
+                    writer.Seek(4, SeekOrigin.Begin);
+                    // Size of the overall file - 8 bytes, in bytes (32-bit integer).
+                    writer.Write((int)(fileSize - 8));
+                    // rewind and write data size
+                    writer.Seek(40, SeekOrigin.Begin);
+                    // Size of the data section.
+                    writer.Write(fileSize - Constants.WavHeaderSize);
+
+                    if (RecordingManager.EnableDebug)
                     {
-                        if (RecordingManager.IsRecording)
-                        {
-                            RecordingManager.IsRecording = false;
-
-                            if (RecordingManager.EnableDebug)
-                            {
-                                Debug.Log($"[{nameof(RecordingManager)}] Finished recording...");
-                            }
-                        }
-
-                        if (shouldStop)
-                        {
-                            if (RecordingManager.EnableDebug)
-                            {
-                                Debug.Log($"[{nameof(RecordingManager)}] Writing end of stream...");
-                            }
-
-                            var fileSize = outStream.Position;
-                            // rewind and write header file size
-                            writer.Seek(4, SeekOrigin.Begin);
-                            // Size of the overall file - 8 bytes, in bytes (32-bit integer).
-                            writer.Write((int)(fileSize - 8));
-                            // rewind and write data size
-                            writer.Seek(40, SeekOrigin.Begin);
-                            // Size of the data section.
-                            writer.Write(lastPosition * sizeof(short));
-                            break;
-                        }
-
-                        if (RecordingManager.EnableDebug)
-                        {
-                            Debug.Log($"[{nameof(RecordingManager)}] Stop stream requested...");
-                        }
-
-                        // delays stopping to make sure we process the last bits of the clip
-                        shouldStop = true;
+                        Debug.Log($"[{nameof(RecordingManager)}] Flush stream...");
                     }
-                }
 
-                if (RecordingManager.EnableDebug)
-                {
-                    Debug.Log($"[{nameof(RecordingManager)}] Flush stream...");
+                    writer.Flush();
                 }
-
-                writer.Flush();
-                // ReSharper disable once MethodSupportsCancellation
-                await outStream.FlushAsync().ConfigureAwait(false);
             }
             catch (Exception e)
             {
-                Debug.LogError(e);
+                Debug.LogError($"[{nameof(RecordingManager)}] Failed to record clip!\n{e}");
+                RecordingManager.IsRecording = false;
+                RecordingManager.IsProcessing = false;
                 return null;
             }
             finally
@@ -208,21 +244,21 @@ namespace Utilities.Encoding.Wav
                 }
 
                 await writer.DisposeAsync().ConfigureAwait(false);
-                await outStream.DisposeAsync().ConfigureAwait(false);
+                await fileStream.DisposeAsync().ConfigureAwait(false);
             }
 
             if (RecordingManager.EnableDebug)
             {
-                Debug.Log($"[{nameof(RecordingManager)}] Copying recording data stream...");
+                Debug.Log($"[{nameof(RecordingManager)}] Copying recording data stream to new audio clip...");
             }
 
-            var microphoneData = new float[lastPosition];
-            Array.Copy(samples, microphoneData, microphoneData.Length - 1);
+            var microphoneData = new float[sampleCount * channels];
+            Array.Copy(samples, microphoneData, microphoneData.Length);
 
             await Awaiters.UnityMainThread;
 
             // Create a copy.
-            var newClip = AudioClip.Create(clipName, microphoneData.Length, channels, frequency, false);
+            var newClip = AudioClip.Create(clipName, microphoneData.Length, channels, sampleRate, false);
             newClip.SetData(microphoneData, 0);
             var result = new Tuple<string, AudioClip>(path, newClip);
 
