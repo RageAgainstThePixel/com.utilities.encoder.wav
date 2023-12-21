@@ -95,14 +95,15 @@ namespace Utilities.Encoding.Wav
             var sampleCount = 0;
             var clipName = clip.name;
             var channels = clip.channels;
+            var bufferSize = clip.samples;
             var sampleRate = clip.frequency;
-            var sampleBuffer = new float[clip.samples];
+            var sampleBuffer = new float[bufferSize];
             var maxSamples = RecordingManager.MaxRecordingLength * sampleRate;
-            var samples = new float[maxSamples];
+            var finalSamples = new float[maxSamples];
 
             if (RecordingManager.EnableDebug)
             {
-                Debug.Log($"[{nameof(RecordingManager)}] Initializing data for {clipName}. Channels: {channels}, Sample Rate: {sampleRate}, Sample buffer length: {sampleBuffer.Length}, Max Sample Length: {maxSamples}");
+                Debug.Log($"[{nameof(RecordingManager)}] Initializing data for {clipName}. Channels: {channels}, Sample Rate: {sampleRate}, Sample buffer size: {bufferSize}, Max Sample Length: {maxSamples}");
             }
 
             if (!Directory.Exists(saveDirectory))
@@ -153,7 +154,7 @@ namespace Utilities.Encoding.Wav
                         if (isLooping)
                         {
                             // Microphone loopback detected.
-                            samplesToWrite = clip.samples - lastMicrophonePosition;
+                            samplesToWrite = bufferSize - lastMicrophonePosition;
 
                             if (RecordingManager.EnableDebug)
                             {
@@ -168,20 +169,19 @@ namespace Utilities.Encoding.Wav
 
                         if (samplesToWrite > 0)
                         {
-                            // Handle the situation where we have a loopback.
                             clip.GetData(sampleBuffer, 0);
 
                             for (var i = 0; i < samplesToWrite; i++)
                             {
                                 // Write pcm data to file.
-                                var bufferIndex = (lastMicrophonePosition + i) % clip.samples; // Wrap around index.
+                                var bufferIndex = (lastMicrophonePosition + i) % bufferSize; // Wrap around index.
                                 var value = sampleBuffer[bufferIndex];
                                 var sample = (short)(Math.Max(-1f, Math.Min(1f, value)) * short.MaxValue);
                                 writer.Write((byte)(sample & byte.MaxValue));
                                 writer.Write((byte)((sample >> 8) & byte.MaxValue));
 
                                 // Store the sample in the final samples array.
-                                samples[sampleCount * channels + i] = sampleBuffer[bufferIndex];
+                                finalSamples[sampleCount * channels + i] = sampleBuffer[bufferIndex];
                             }
 
                             lastMicrophonePosition = microphonePosition;
@@ -249,15 +249,17 @@ namespace Utilities.Encoding.Wav
 
             if (RecordingManager.EnableDebug)
             {
-                Debug.Log($"[{nameof(RecordingManager)}] Copying recording data stream to new audio clip...");
+                Debug.Log($"[{nameof(RecordingManager)}] Finalized file write. Copying recording into new AudioClip");
             }
 
+            // Trim the final samples down into the recorded range.
             var microphoneData = new float[sampleCount * channels];
-            Array.Copy(samples, microphoneData, microphoneData.Length);
+            Array.Copy(finalSamples, microphoneData, microphoneData.Length);
 
+            // Expected to be on the Unity Main Thread.
             await Awaiters.UnityMainThread;
 
-            // Create a copy.
+            // Create a new copy of the final recorded clip.
             var newClip = AudioClip.Create(clipName, microphoneData.Length, channels, sampleRate, false);
             newClip.SetData(microphoneData, 0);
             var result = new Tuple<string, AudioClip>(path, newClip);
