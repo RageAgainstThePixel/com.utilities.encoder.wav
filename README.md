@@ -6,15 +6,19 @@ Simple library for WAV encoding support in the [Unity](https://unity.com/) Game 
 
 ## Installing
 
+Requires Unity 2021.3 LTS or higher.
+
+The recommended installation method is though the unity package manager and [OpenUPM](https://openupm.com/packages/com.utilities.encoder.wav).
+
 ### Via Unity Package Manager and OpenUPM
 
 - Open your Unity project settings
 - Select the `Package Manager`
 ![scoped-registries](Utilities.Encoder.Wav/Packages/com.utilities.encoder.wav/Documentation~/images/package-manager-scopes.png)
 - Add the OpenUPM package registry:
-  - `Name: OpenUPM`
-  - `URL: https://package.openupm.com`
-  - `Scope(s):`
+  - Name: `OpenUPM`
+  - URL: `https://package.openupm.com`
+  - Scope(s):
     - `com.utilities`
 - Open the Unity Package Manager window
 - Change the Registry from Unity to `My Registries`
@@ -32,7 +36,30 @@ Simple library for WAV encoding support in the [Unity](https://unity.com/) Game 
 
 ## Documentation
 
+### Table of Contents
+
+- [Recording Behaviour](#recording-behaviour)
+- [Audio Clip Extensions](#audio-clip-extensions)
+  - [Encode WAV](#encode-wav)
+- [Related Packages](#related-packages)
+
+## Recording Behaviour
+
 Simply add the `WavRecorderBehaviour` to any GameObject to enable recording.
+
+> This will stream the recording directly to disk as it is recorded.
+
+## Audio Clip Extensions
+
+Provides extensions to encode `AudioClip`s to WAV encoded bytes.
+Supports 8, 16, 24, and 32 bit sample sizes.
+
+### Encode WAV
+
+```csharp
+var bytes = audioClip.EncodeToWav();
+var bytes = await audioClip.EncodeToWavAsync();
+```
 
 ## Related Packages
 
