@@ -30,6 +30,14 @@ namespace Utilities.Encoder.Wav.Samples.Recording
             RefreshDeviceList();
         }
 
+        private void Update()
+        {
+            if (Microphone.devices.Length != dropdown.options.Count)
+            {
+                RefreshDeviceList();
+            }
+        }
+
         private void OnDestroy()
         {
             dropdown.onValueChanged.RemoveListener(OnDeviceSelected);

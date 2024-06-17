@@ -136,7 +136,7 @@ PlayerSettings:
   vulkanEnableLateAcquireNextImage: 0
   vulkanEnableCommandBufferRecycling: 1
   loadStoreDebugModeEnabled: 0
-  bundleVersion: 1.0.0
+  bundleVersion: 1.2.0
   preloadedAssets: []
   metroInputSource: 0
   wsaTransparentSwapchain: 0
@@ -161,6 +161,7 @@ PlayerSettings:
     Android: com.utilities.encoder.wav
     Lumin: com.utilities.encoder.wav
     Standalone: com.utilities.encoder.wav
+    WebGL: com.utilities.encoder.wav
     iPhone: com.utilities.encoder.wav
   buildNumber:
     Standalone: 0
