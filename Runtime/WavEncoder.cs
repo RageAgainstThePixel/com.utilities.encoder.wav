@@ -75,7 +75,9 @@ namespace Utilities.Encoding.Wav
                 throw new InvalidOperationException($"{nameof(StreamSaveToDiskAsync)} can only be called from {nameof(RecordingManager.StartRecordingAsync)}");
             }
 
-            if (!Microphone.IsRecording(null))
+            var device = RecordingManager.DefaultRecordingDevice;
+
+            if (!Microphone.IsRecording(device))
             {
                 throw new InvalidOperationException("Microphone is not initialized!");
             }
@@ -106,21 +108,32 @@ namespace Utilities.Encoding.Wav
                 Debug.Log($"[{nameof(RecordingManager)}] Initializing data for {clipName}. Channels: {channels}, Sample Rate: {sampleRate}, Sample buffer size: {bufferSize}, Max Sample Length: {maxSamples}");
             }
 
-            if (!Directory.Exists(saveDirectory))
+            Stream finalStream;
+            var outputPath = string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(saveDirectory))
             {
-                Directory.CreateDirectory(saveDirectory);
+                if (!Directory.Exists(saveDirectory))
+                {
+                    Directory.CreateDirectory(saveDirectory);
+                }
+
+                outputPath = $"{saveDirectory}/{clipName}.wav";
+
+                if (File.Exists(outputPath))
+                {
+                    Debug.LogWarning($"[{nameof(RecordingManager)}] {outputPath} already exists, attempting to delete...");
+                    File.Delete(outputPath);
+                }
+
+                finalStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write);
+            }
+            else
+            {
+                finalStream = new MemoryStream();
             }
 
-            var path = $"{saveDirectory}/{clipName}.wav";
-
-            if (File.Exists(path))
-            {
-                Debug.LogWarning($"[{nameof(RecordingManager)}] {path} already exists, attempting to delete...");
-                File.Delete(path);
-            }
-
-            var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write);
-            var writer = new BinaryWriter(fileStream);
+            var writer = new BinaryWriter(finalStream);
 
             try
             {
@@ -138,7 +151,7 @@ namespace Utilities.Encoding.Wav
                     {
                         // Expected to be on the Unity Main Thread.
                         await Awaiters.UnityMainThread;
-                        var microphonePosition = Microphone.GetPosition(null);
+                        var microphonePosition = Microphone.GetPosition(device);
 
                         if (microphonePosition <= 0 && lastMicrophonePosition == 0)
                         {
@@ -204,14 +217,14 @@ namespace Utilities.Encoding.Wav
                 finally
                 {
                     RecordingManager.IsRecording = false;
-                    Microphone.End(null);
+                    Microphone.End(device);
 
                     if (RecordingManager.EnableDebug)
                     {
                         Debug.Log($"[{nameof(RecordingManager)}] Recording stopped, writing end of stream...");
                     }
 
-                    var fileSize = fileStream.Position;
+                    var fileSize = finalStream.Position;
                     // rewind and write header file size
                     writer.Seek(4, SeekOrigin.Begin);
                     // Size of the overall file - 8 bytes, in bytes (32-bit integer).
@@ -244,7 +257,7 @@ namespace Utilities.Encoding.Wav
                 }
 
                 await writer.DisposeAsync().ConfigureAwait(false);
-                await fileStream.DisposeAsync().ConfigureAwait(false);
+                await finalStream.DisposeAsync().ConfigureAwait(false);
             }
 
             if (RecordingManager.EnableDebug)
@@ -262,7 +275,7 @@ namespace Utilities.Encoding.Wav
             // Create a new copy of the final recorded clip.
             var newClip = AudioClip.Create(clipName, microphoneData.Length, channels, sampleRate, false);
             newClip.SetData(microphoneData, 0);
-            var result = new Tuple<string, AudioClip>(path, newClip);
+            var result = new Tuple<string, AudioClip>(outputPath, newClip);
 
             RecordingManager.IsProcessing = false;
 
