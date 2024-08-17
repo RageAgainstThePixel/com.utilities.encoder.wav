@@ -29,5 +29,6 @@
   "publishConfig": {
     "registry": "https://package.openupm.com"
   },
-  "hideInEditor": false
+  "hideInEditor": false,
+  "type": "library"
 }
