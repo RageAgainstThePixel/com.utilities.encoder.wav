@@ -11,14 +11,9 @@ on:
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ ( github.event_name == 'pull_request' || github.event.action == 'synchronize' ) }}
-permissions:
-  checks: write
-  pull-requests: write
+  cancel-in-progress: ${{ (github.event_name == 'pull_request' || github.event.action == 'synchronize') }}
 jobs:
   build:
-    env:
-      UNITY_PROJECT_PATH: ''
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -47,6 +42,7 @@ jobs:
         name: '${{ matrix.build-target }}-Validate'
         with:
           log-name: '${{ matrix.build-target }}-Validate'
+          build-target: ${{ matrix.build-target }}
           args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.ValidateProject -importTMProEssentialsAsset'
       - uses: RageAgainstThePixel/unity-action@v1
         name: '${{ matrix.build-target }}-Test'
@@ -58,6 +54,7 @@ jobs:
         name: '${{ matrix.build-target }}-Build'
         with:
           log-name: '${{ matrix.build-target }}-Build'
+          build-target: ${{ matrix.build-target }}
           args: '-quit -nographics -batchmode -executeMethod Utilities.Editor.BuildPipeline.UnityPlayerBuildTools.StartCommandLineBuild'
       - uses: actions/upload-artifact@v4
         if: success() || failure()
