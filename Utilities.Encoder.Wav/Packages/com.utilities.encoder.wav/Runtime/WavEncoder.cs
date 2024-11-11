@@ -71,7 +71,7 @@ namespace Utilities.Encoding.Wav
 
         /// <inheritdoc />
         [Preserve]
-        public async Task StreamRecordingAsync(ClipData clipData, Action<ReadOnlyMemory<byte>> bufferCallback, CancellationToken cancellationToken, [CallerMemberName] string callingMethodName = null)
+        public async Task StreamRecordingAsync(ClipData clipData, Func<ReadOnlyMemory<byte>, Task> bufferCallback, CancellationToken cancellationToken, [CallerMemberName] string callingMethodName = null)
         {
             if (callingMethodName != nameof(RecordingManager.StartRecordingStreamAsync))
             {
@@ -86,15 +86,14 @@ namespace Utilities.Encoding.Wav
                 await using var writer = new BinaryWriter(stream);
                 WriteWavHeader(writer, clipData.Channels, clipData.SampleRate);
                 writer.Flush();
-                Memory<byte> headerData = new();
-                var bytesRead = await stream.ReadAsync(headerData, cancellationToken).ConfigureAwait(false);
+                var headerData = stream.ToArray();
 
-                if (bytesRead != Constants.WavHeaderSize)
+                if (headerData.Length != Constants.WavHeaderSize)
                 {
-                    Debug.LogWarning($"Failed to read all header content! {bytesRead} != {Constants.WavHeaderSize}");
+                    Debug.LogWarning($"Failed to read all header content! {headerData.Length} != {Constants.WavHeaderSize}");
                 }
 
-                bufferCallback.Invoke(headerData);
+                await bufferCallback.Invoke(headerData);
                 await InternalStreamRecordAsync(clipData, null, bufferCallback, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e)
@@ -162,7 +161,11 @@ namespace Utilities.Encoding.Wav
 
                     try
                     {
-                        (finalSamples, totalSampleCount) = await InternalStreamRecordAsync(clipData, finalSamples, buffer => writer.Write(buffer.Span), cancellationToken);
+                        (finalSamples, totalSampleCount) = await InternalStreamRecordAsync(clipData, finalSamples, async buffer =>
+                        {
+                            writer.Write(buffer.Span);
+                            await Task.Yield();
+                        }, cancellationToken).ConfigureAwait(true);
                     }
                     finally
                     {
@@ -238,7 +241,7 @@ namespace Utilities.Encoding.Wav
             return result;
         }
 
-        private static async Task<(float[], int)> InternalStreamRecordAsync(ClipData clipData, float[] finalSamples, Action<ReadOnlyMemory<byte>> bufferCallback, CancellationToken cancellationToken)
+        private static async Task<(float[], int)> InternalStreamRecordAsync(ClipData clipData, float[] finalSamples, Func<ReadOnlyMemory<byte>, Task> bufferCallback, CancellationToken cancellationToken)
         {
             try
             {
@@ -286,11 +289,21 @@ namespace Utilities.Encoding.Wav
                             var bufferIndex = (lastMicrophonePosition + i) % clipData.BufferSize; // Wrap around index.
                             var value = sampleBuffer[bufferIndex];
                             var sample = (short)(Math.Max(-1f, Math.Min(1f, value)) * short.MaxValue);
-                            bufferCallback.Invoke(new ReadOnlyMemory<byte>(new[]
+                            var sampleData = new ReadOnlyMemory<byte>(new[]
                             {
                                 (byte)(sample & byte.MaxValue),
                                 (byte)(sample >> 8 & byte.MaxValue)
-                            }));
+                            });
+
+                            try
+                            {
+                                await bufferCallback.Invoke(sampleData).ConfigureAwait(false);
+                            }
+                            catch (Exception e)
+                            {
+                                Debug.LogException(new Exception($"[{nameof(WavEncoder)}] error occurred when buffering audio", e));
+                            }
+
                             if (finalSamples is { Length: > 0 })
                             {
                                 finalSamples[sampleCount * clipData.Channels + i] = sampleBuffer[bufferIndex];
