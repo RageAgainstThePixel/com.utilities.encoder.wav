@@ -73,10 +73,9 @@ namespace Utilities.Encoding.Wav
         [Preserve]
         public async Task StreamRecordingAsync(ClipData clipData, Action<ReadOnlyMemory<byte>> bufferCallback, CancellationToken cancellationToken, [CallerMemberName] string callingMethodName = null)
         {
-            if (callingMethodName != nameof(RecordingManager.StartRecordingAsync) ||
-                callingMethodName != nameof(StreamSaveToDiskAsync))
+            if (callingMethodName != nameof(RecordingManager.StartRecordingStreamAsync))
             {
-                throw new InvalidOperationException($"{nameof(StreamSaveToDiskAsync)} can only be called from {nameof(RecordingManager.StartRecordingAsync)}");
+                throw new InvalidOperationException($"{nameof(StreamSaveToDiskAsync)} can only be called from {nameof(RecordingManager.StartRecordingStreamAsync)} not {callingMethodName}");
             }
 
             RecordingManager.IsProcessing = true;
@@ -119,7 +118,7 @@ namespace Utilities.Encoding.Wav
         {
             if (callingMethodName != nameof(RecordingManager.StartRecordingAsync))
             {
-                throw new InvalidOperationException($"{nameof(StreamSaveToDiskAsync)} can only be called from {nameof(RecordingManager.StartRecordingAsync)}");
+                throw new InvalidOperationException($"{nameof(StreamSaveToDiskAsync)} can only be called from {nameof(RecordingManager.StartRecordingAsync)} not {callingMethodName}");
             }
 
             var outputPath = string.Empty;
