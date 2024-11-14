@@ -161,7 +161,7 @@ namespace Utilities.Encoding.Wav
                 }
 
                 var totalSampleCount = 0;
-                var finalSamples = new float[clipData.MaxSamples];
+                var finalSamples = new float[clipData.MaxSamples ?? clipData.SampleRate * RecordingManager.MaxRecordingLength];
                 var writer = new BinaryWriter(outStream);
 
                 try
@@ -331,7 +331,7 @@ namespace Utilities.Encoding.Wav
                         }
                     }
 
-                    if (sampleCount >= clipData.MaxSamples || cancellationToken.IsCancellationRequested)
+                    if (clipData.MaxSamples.HasValue && sampleCount >= clipData.MaxSamples || cancellationToken.IsCancellationRequested)
                     {
                         if (RecordingManager.EnableDebug)
                         {
