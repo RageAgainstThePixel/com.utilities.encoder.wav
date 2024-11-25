@@ -131,7 +131,7 @@ namespace Utilities.Encoding.Wav
 
             var outputPath = string.Empty;
             RecordingManager.IsProcessing = true;
-            Tuple<string, AudioClip> result = null;
+            Tuple<string, AudioClip> result;
 
             try
             {
@@ -250,6 +250,25 @@ namespace Utilities.Encoding.Wav
                 }
             }
             return result;
+        }
+
+        [Preserve]
+        public static async Task WriteToFileAsync(string path, byte[] pcmData, int channels, int sampleRate, PCMFormatSize bitDepth = PCMFormatSize.SixteenBit, CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                await Awaiters.BackgroundThread;
+                var bitsPerSample = 8 * (int)bitDepth;
+                await using var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
+                await using var writer = new BinaryWriter(fileStream);
+                WriteWavHeader(writer, channels, sampleRate, bitsPerSample, pcmData.Length);
+                writer.Write(pcmData);
+                writer.Flush();
+            }
+            catch (Exception e)
+            {
+                Debug.LogException(e);
+            }
         }
 
         private static async Task<(float[], int)> InternalStreamRecordAsync(ClipData clipData, float[] finalSamples, Func<ReadOnlyMemory<byte>, Task> bufferCallback, CancellationToken cancellationToken)
