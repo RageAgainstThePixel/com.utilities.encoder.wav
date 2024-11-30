@@ -9,7 +9,6 @@ using UnityEngine;
 using UnityEngine.Scripting;
 using Utilities.Async;
 using Utilities.Audio;
-using Microphone = Utilities.Audio.Microphone;
 
 namespace Utilities.Encoding.Wav
 {
@@ -30,6 +29,7 @@ namespace Utilities.Encoding.Wav
             return stream.ToArray();
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void WriteWavHeader(BinaryWriter writer, int channels, int sampleRate, int bitsPerSample = 16, int pcmDataLength = 0)
         {
             // We'll calculate the file size and protect against overflow.
@@ -84,7 +84,7 @@ namespace Utilities.Encoding.Wav
             {
                 using var stream = new MemoryStream();
                 await using var writer = new BinaryWriter(stream);
-                WriteWavHeader(writer, clipData.Channels, clipData.SampleRate);
+                WriteWavHeader(writer, clipData.Channels, clipData.InputSampleRate);
                 writer.Flush();
                 var headerData = stream.ToArray();
 
@@ -94,7 +94,7 @@ namespace Utilities.Encoding.Wav
                 }
 
                 await bufferCallback.Invoke(headerData);
-                await InternalStreamRecordAsync(clipData, null, bufferCallback, cancellationToken).ConfigureAwait(false);
+                await PCMEncoder.InternalStreamRecordAsync(clipData, null, bufferCallback, PCMEncoder.DefaultSampleProvider, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -161,20 +161,23 @@ namespace Utilities.Encoding.Wav
                 }
 
                 var totalSampleCount = 0;
-                var finalSamples = new float[clipData.MaxSamples ?? clipData.SampleRate * RecordingManager.MaxRecordingLength];
+                var maxSampleLength = clipData.MaxSamples ?? clipData.InputSampleRate * RecordingManager.MaxRecordingLength;
+                var finalSamples = new float[maxSampleLength];
                 var writer = new BinaryWriter(outStream);
 
                 try
                 {
-                    WriteWavHeader(writer, clipData.Channels, clipData.SampleRate);
+                    WriteWavHeader(writer, clipData.Channels, clipData.InputSampleRate);
 
                     try
                     {
-                        (finalSamples, totalSampleCount) = await InternalStreamRecordAsync(clipData, finalSamples, async buffer =>
+                        async Task BufferCallback(ReadOnlyMemory<byte> buffer)
                         {
                             writer.Write(buffer.Span);
                             await Task.Yield();
-                        }, cancellationToken).ConfigureAwait(true);
+                        }
+
+                        (finalSamples, totalSampleCount) = await PCMEncoder.InternalStreamRecordAsync(clipData, finalSamples, BufferCallback, PCMEncoder.DefaultSampleProvider, cancellationToken).ConfigureAwait(true);
                     }
                     finally
                     {
@@ -235,7 +238,7 @@ namespace Utilities.Encoding.Wav
                 Array.Copy(finalSamples, microphoneData, microphoneData.Length);
                 await Awaiters.UnityMainThread; // switch back to main thread to call unity apis
                 // Create a new copy of the final recorded clip.
-                var newClip = AudioClip.Create(clipData.Name, microphoneData.Length, clipData.Channels, clipData.SampleRate, false);
+                var newClip = AudioClip.Create(clipData.Name, microphoneData.Length, clipData.Channels, clipData.OutputSampleRate, false);
                 newClip.SetData(microphoneData, 0);
                 result = new Tuple<string, AudioClip>(outputPath, newClip);
                 callback?.Invoke(result);
@@ -258,9 +261,10 @@ namespace Utilities.Encoding.Wav
             try
             {
                 await Awaiters.BackgroundThread;
-                var bitsPerSample = 8 * (int)bitDepth;
                 await using var fileStream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 4096, true);
                 await using var writer = new BinaryWriter(fileStream);
+                cancellationToken.ThrowIfCancellationRequested();
+                var bitsPerSample = 8 * (int)bitDepth;
                 WriteWavHeader(writer, channels, sampleRate, bitsPerSample, pcmData.Length);
                 writer.Write(pcmData);
                 writer.Flush();
@@ -268,109 +272,6 @@ namespace Utilities.Encoding.Wav
             catch (Exception e)
             {
                 Debug.LogException(e);
-            }
-        }
-
-        private static async Task<(float[], int)> InternalStreamRecordAsync(ClipData clipData, float[] finalSamples, Func<ReadOnlyMemory<byte>, Task> bufferCallback, CancellationToken cancellationToken)
-        {
-            try
-            {
-                var sampleCount = 0;
-                var shouldStop = false;
-                var lastMicrophonePosition = 0;
-                var sampleBuffer = new float[clipData.BufferSize];
-                do
-                {
-                    await Awaiters.UnityMainThread; // ensure we're on main thread to call unity apis
-                    var microphonePosition = Microphone.GetPosition(clipData.Device);
-
-                    if (microphonePosition <= 0 && lastMicrophonePosition == 0)
-                    {
-                        // Skip this iteration if there's no new data
-                        // wait for next update
-                        continue;
-                    }
-
-                    var isLooping = microphonePosition < lastMicrophonePosition;
-                    int samplesToWrite;
-
-                    if (isLooping)
-                    {
-                        // Microphone loopback detected.
-                        samplesToWrite = clipData.BufferSize - lastMicrophonePosition;
-
-                        if (RecordingManager.EnableDebug)
-                        {
-                            Debug.LogWarning($"[{nameof(RecordingManager)}] Microphone loopback detected! [{microphonePosition} < {lastMicrophonePosition}] samples to write: {samplesToWrite}");
-                        }
-                    }
-                    else
-                    {
-                        // No loopback, process normally.
-                        samplesToWrite = microphonePosition - lastMicrophonePosition;
-                    }
-
-                    if (samplesToWrite > 0)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        clipData.Clip.GetData(sampleBuffer, 0);
-
-                        for (var i = 0; i < samplesToWrite; i++)
-                        {
-                            var bufferIndex = (lastMicrophonePosition + i) % clipData.BufferSize; // Wrap around index.
-                            var value = sampleBuffer[bufferIndex];
-                            var sample = (short)(Math.Max(-1f, Math.Min(1f, value)) * short.MaxValue);
-                            var sampleData = new ReadOnlyMemory<byte>(new[]
-                            {
-                                (byte)(sample & byte.MaxValue),
-                                (byte)(sample >> 8 & byte.MaxValue)
-                            });
-
-                            try
-                            {
-                                await bufferCallback.Invoke(sampleData).ConfigureAwait(false);
-                            }
-                            catch (Exception e)
-                            {
-                                Debug.LogException(new Exception($"[{nameof(WavEncoder)}] error occurred when buffering audio", e));
-                            }
-
-                            if (finalSamples is { Length: > 0 })
-                            {
-                                finalSamples[sampleCount * clipData.Channels + i] = sampleBuffer[bufferIndex];
-                            }
-                        }
-
-                        lastMicrophonePosition = microphonePosition;
-                        sampleCount += samplesToWrite;
-
-                        if (RecordingManager.EnableDebug)
-                        {
-                            Debug.Log($"[{nameof(RecordingManager)}] State: {nameof(RecordingManager.IsRecording)}? {RecordingManager.IsRecording} | Wrote {samplesToWrite} samples | last mic pos: {lastMicrophonePosition} | total samples: {sampleCount} | isCancelled? {cancellationToken.IsCancellationRequested}");
-                        }
-                    }
-
-                    if (clipData.MaxSamples.HasValue && sampleCount >= clipData.MaxSamples || cancellationToken.IsCancellationRequested)
-                    {
-                        if (RecordingManager.EnableDebug)
-                        {
-                            Debug.Log("Breaking internal record loop!");
-                        }
-
-                        shouldStop = true;
-                    }
-                } while (!shouldStop);
-                return (finalSamples, sampleCount);
-            }
-            finally
-            {
-                RecordingManager.IsRecording = false;
-                Microphone.End(clipData.Device);
-
-                if (RecordingManager.EnableDebug)
-                {
-                    Debug.Log($"[{nameof(RecordingManager)}] Recording stopped");
-                }
             }
         }
     }
