@@ -84,7 +84,7 @@ namespace Utilities.Encoding.Wav
             {
                 using var stream = new MemoryStream();
                 await using var writer = new BinaryWriter(stream);
-                WriteWavHeader(writer, clipData.Channels, clipData.InputSampleRate);
+                WriteWavHeader(writer, clipData.Channels, clipData.OutputSampleRate);
                 writer.Flush();
                 var headerData = stream.ToArray();
 
@@ -167,7 +167,7 @@ namespace Utilities.Encoding.Wav
 
                 try
                 {
-                    WriteWavHeader(writer, clipData.Channels, clipData.InputSampleRate);
+                    WriteWavHeader(writer, clipData.Channels, clipData.OutputSampleRate);
 
                     try
                     {
