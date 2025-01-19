@@ -161,7 +161,7 @@ namespace Utilities.Encoding.Wav
                 }
 
                 var totalSampleCount = 0;
-                var maxSampleLength = clipData.MaxSamples ?? clipData.InputSampleRate * RecordingManager.MaxRecordingLength;
+                var maxSampleLength = clipData.MaxSamples ?? clipData.OutputSampleRate * RecordingManager.MaxRecordingLength * clipData.Channels;
                 var finalSamples = new float[maxSampleLength];
                 var writer = new BinaryWriter(outStream);
 
