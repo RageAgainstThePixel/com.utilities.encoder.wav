@@ -30,6 +30,12 @@ jobs:
           - os: ubuntu-latest
             unity-version: 6000.x
             build-target: StandaloneLinux64
+          - os: ubuntu-latest
+            unity-version: 2022.x
+            build-target: WebGL
+          - os: ubuntu-latest
+            unity-version: 6000.x
+            build-target: WebGL
           - os: windows-latest
             unity-version: 2022.x
             build-target: StandaloneWindows64
