@@ -16,7 +16,7 @@ namespace Utilities.Encoding.Wav
     public class WavEncoder : IEncoder
     {
         [Preserve]
-        public WavEncoder() { }
+        protected WavEncoder() { }
 
         [Preserve]
         internal static byte[] EncodeWav(byte[] pcmData, int channels, int sampleRate, int bitsPerSample = 16)
