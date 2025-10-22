@@ -3,21 +3,21 @@
   "displayName": "Utilities.Encoder.Wav",
   "description": "Simple library for WAV encoding support.",
   "keywords": [],
-  "version": "2.2.4",
+  "version": "2.3.0",
   "unity": "2021.3",
   "documentationUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav#documentation",
   "changelogUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav/releases",
   "license": "MIT",
   "repository": {
-    "type": "git",
-    "repository": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav.git"
+    "url": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav.git",
+    "type": "git"
   },
   "author": {
     "name": "Stephen Hodgson",
     "url": "https://github.com/StephenHodgson"
   },
   "dependencies": {
-    "com.utilities.audio": "2.2.7"
+    "com.utilities.audio": "2.3.0"
   },
   "samples": [
     {
