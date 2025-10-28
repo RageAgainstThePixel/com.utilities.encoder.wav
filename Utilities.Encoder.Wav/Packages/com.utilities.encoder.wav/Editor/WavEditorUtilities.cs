@@ -38,7 +38,7 @@ namespace Utilities.Encoding.Wav.Editor
 
             try
             {
-                File.WriteAllBytes(newClipPath, audioClip.EncodeToWav());
+                File.WriteAllBytes(newClipPath, audioClip.EncodeToWav().ToArray());
                 AssetDatabase.ImportAsset(newClipPath);
             }
             catch (Exception e)

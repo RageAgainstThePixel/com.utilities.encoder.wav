@@ -37,7 +37,7 @@ namespace Utilities.Encoding.Wav.Tests
             audioClip.SetData(samples, 0);
 
             // Encode to WAV
-            var encodedBytes = audioClip.EncodeToWav();
+            var encodedBytes = audioClip.EncodeToWav().ToArray();
 
             // Validate the result
             Assert.IsNotNull(encodedBytes, "Failed to encode AudioClip to WAV");

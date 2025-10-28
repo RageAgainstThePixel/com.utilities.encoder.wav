@@ -3,11 +3,12 @@
     "rootNamespace": "Utilities.Encoding.Wav",
     "references": [
         "GUID:a6609af893242c7438d701ddd4cce46a",
-        "GUID:d25c28436b1dcc9408d86f49a0f5210b"
+        "GUID:d25c28436b1dcc9408d86f49a0f5210b",
+        "GUID:6ab1da3c58a70364e92dc36aaec78f43"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
-    "allowUnsafeCode": false,
+    "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": true,

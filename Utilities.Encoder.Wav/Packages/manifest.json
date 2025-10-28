@@ -5,6 +5,7 @@
     "com.unity.test-framework": "1.1.33",
     "com.unity.textmeshpro": "3.0.9",
     "com.unity.ugui": "1.0.0",
+    "com.utilities.audio": "https://github.com/RageAgainstThePixel/com.utilities.async.git?path=/Utilities.Async/Packages/com.utilities.async#dev2",
     "com.utilities.buildpipeline": "1.8.1"
   },
   "scopedRegistries": [
