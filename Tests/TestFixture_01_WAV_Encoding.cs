@@ -1,8 +1,9 @@
 // Licensed under the MIT License. See LICENSE in the project root for license information.
 
-using NUnit.Framework;
 using System;
 using System.IO;
+using NUnit.Framework;
+using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 using Utilities.Audio;
@@ -13,6 +14,7 @@ namespace Utilities.Encoding.Wav.Tests
     {
         private const int Channels = 1;
         private const int Frequency = 44100;
+        private const float k_16bit_QuantizationTolerance = 1.0f / (1 << 15);
 
         [Test]
         public void Test_01_EncodeToWav()
@@ -22,19 +24,23 @@ namespace Utilities.Encoding.Wav.Tests
             Assert.IsTrue(File.Exists(raw8BitPcmPath), "16-bit PCM sample file not found");
 
             // Read PCM bytes
-            var pcm8BitBytes = File.ReadAllBytes(raw8BitPcmPath);
+            using var pcm8BitBytes = new NativeArray<byte>(File.ReadAllBytes(raw8BitPcmPath), Allocator.Temp);
             Assert.IsNotNull(pcm8BitBytes, "Failed to read 16-bit PCM bytes");
             Assert.IsNotEmpty(pcm8BitBytes, "16-bit PCM bytes array is empty");
 
             // Decode PCM bytes
-            var samples = PCMEncoder.Decode(pcm8BitBytes);
-            Assert.IsNotNull(samples, "Failed to decode PCM bytes");
-            Assert.IsNotEmpty(samples, "Decoded samples array is empty");
+            using var testSamples = PCMEncoder.Decode(pcm8BitBytes);
+            Assert.IsNotNull(testSamples, "Failed to decode PCM bytes");
+            Assert.IsNotEmpty(testSamples, "Decoded samples array is empty");
 
             // Create AudioClip
-            var audioClip = AudioClip.Create("16bit-sine", samples.Length, Channels, Frequency, false);
+            var audioClip = AudioClip.Create("16bit-sine", testSamples.Length, Channels, Frequency, false);
             Assert.IsNotNull(audioClip, "Failed to create AudioClip");
-            audioClip.SetData(samples, 0);
+#if UNITY_6000_0_OR_NEWER
+            audioClip.SetData(testSamples, 0);
+#else
+            audioClip.SetData(testSamples.ToArray(), 0);
+#endif
 
             // Encode to WAV
             var encodedBytes = audioClip.EncodeToWav();
@@ -44,7 +50,7 @@ namespace Utilities.Encoding.Wav.Tests
             Assert.IsNotEmpty(encodedBytes, "Encoded WAV bytes array is empty");
 
             // Check WAV header
-            Assert.AreEqual(samples.Length, (encodedBytes.Length - Constants.WavHeaderSize) / 2, "Unexpected WAV header size");
+            Assert.AreEqual(testSamples.Length, (encodedBytes.Length - Constants.WavHeaderSize) / 2, "Unexpected WAV header size");
             Assert.AreEqual('R', encodedBytes[0], "Incorrect RIFF header");
             Assert.AreEqual('I', encodedBytes[1], "Incorrect RIFF header");
             Assert.AreEqual('F', encodedBytes[2], "Incorrect RIFF header");
@@ -90,7 +96,21 @@ namespace Utilities.Encoding.Wav.Tests
             Assert.AreEqual('a', encodedBytes[39], "Incorrect data header");
 
             // Check data length
-            Assert.AreEqual(samples.Length, BitConverter.ToUInt32(encodedBytes, 40) / 2, "Incorrect data length");
+            Assert.AreEqual(testSamples.Length, BitConverter.ToUInt32(encodedBytes, 40) / 2, "Incorrect data length");
+
+            // verify all encoded sample data matches the original samples within 16-bit quantization tolerance
+            // WAV data samples start immediately after the 44-byte header (Constants.WavHeaderSize)
+            var sampleCount = testSamples.Length;
+            for (var sampleIndex = 0; sampleIndex < sampleCount; sampleIndex++)
+            {
+                // read 16-bit PCM (little-endian) from encoded bytes
+                var byteIndex = Constants.WavHeaderSize + sampleIndex * 2;
+                var pcm16 = BitConverter.ToInt16(encodedBytes, byteIndex);
+
+                // convert to float in range [-1,1]
+                var pcmFloat = pcm16 / (float)short.MaxValue;
+                Assert.AreEqual(testSamples[sampleIndex], pcmFloat, k_16bit_QuantizationTolerance, $"Sample value at index {sampleIndex} after decoding is outside the allowed tolerance.");
+            }
         }
     }
 }

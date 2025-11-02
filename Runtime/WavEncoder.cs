@@ -5,10 +5,14 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Scripting;
 using Utilities.Async;
 using Utilities.Audio;
+using Utilities.Extensions;
 
 namespace Utilities.Encoding.Wav
 {
@@ -19,18 +23,22 @@ namespace Utilities.Encoding.Wav
         public WavEncoder() { }
 
         [Preserve]
-        internal static byte[] EncodeWav(byte[] pcmData, int channels, int sampleRate, int bitsPerSample = 16)
+        internal static unsafe NativeArray<byte> EncodeToWav(NativeArray<byte> pcmData, int channels, int sampleRate, int bitsPerSample = 16)
         {
-            using var stream = new MemoryStream();
-            using var writer = new BinaryWriter(stream);
-            WriteWavHeader(writer, channels, sampleRate, bitsPerSample, pcmData.Length);
-            writer.Write(pcmData);
-            writer.Flush();
-            return stream.ToArray();
+            var count = pcmData.Length;
+            var wavData = WriteWavHeader(
+                channels: channels,
+                sampleRate: sampleRate,
+                bitsPerSample: bitsPerSample,
+                pcmDataLength: count,
+                allocator: Allocator.Persistent);
+            var pcmPtr = (byte*)pcmData.GetUnsafeReadOnlyPtr();
+            var wavPtr = (byte*)wavData.GetUnsafePtr();
+            UnsafeUtility.MemCpy(wavPtr + Constants.WavHeaderSize, pcmPtr, count);
+            return wavData;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void WriteWavHeader(BinaryWriter writer, int channels, int sampleRate, int bitsPerSample = 16, int pcmDataLength = 0)
+        internal static NativeArray<byte> WriteWavHeader(int channels, int sampleRate, int bitsPerSample = 16, int pcmDataLength = 0, Allocator allocator = Allocator.Temp)
         {
             // We'll calculate the file size and protect against overflow.
             int fileSize;
@@ -41,37 +49,75 @@ namespace Utilities.Encoding.Wav
             {
                 fileSize = 36 + pcmDataLength;
             }
-            // Marks the file as a riff file. Characters are each 1 byte long.
-            writer.Write(Constants.RIFF_BYTES);
-            // Size of the overall file - 8 bytes, in bytes (32-bit integer). Typically, you'd fill this in after creation.
-            writer.Write(fileSize - 8); // Subtract the RIFF header (4 bytes) and file size field (4 bytes).
-            // File Type Header. For our purposes, it always equals 'WAVE'.
-            writer.Write(Constants.WAVE_BYTES);
-            // Format chunk marker. Includes trailing null.
-            writer.Write(Constants.FMT_BYTES);
-            // Length of format data as listed above.
-            writer.Write(16);
-            // Type of format (1 is PCM) - 2 byte integer.
-            writer.Write((ushort)1);
-            // Number of Channels - 2 byte integer.
-            writer.Write((ushort)channels);
-            // Sample Rate - 32 byte integer.
-            writer.Write(sampleRate);
-            // Bytes per second.
-            writer.Write(bytesPerSecond);
-            // Block align.
-            writer.Write((ushort)blockAlign);
-            // Bits per sample.
-            writer.Write((ushort)bitsPerSample);
-            // 'data' chunk header. Marks the beginning of the data section.
-            writer.Write(Constants.DATA_BYTES);
-            // Size of the data section.
-            writer.Write(pcmDataLength);
+
+            var headerData = new NativeArray<byte>(Constants.WavHeaderSize + pcmDataLength, allocator);
+
+            try
+            {
+                var position = 0;
+                // Marks the file as a riff file. Characters are each 1 byte long.
+                UnsafeFastCopy(Constants.RIFF_BYTES, headerData, ref position);
+                // Subtract the RIFF header (4 bytes) and file size field (4 bytes) to get a 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(fileSize - 8), headerData, ref position);
+                // File Type Header. For our purposes, it always equals 'WAVE'. Characters are each 1 byte long.
+                UnsafeFastCopy(Constants.WAVE_BYTES, headerData, ref position);
+                // Format chunk marker. Includes trailing null. Characters are each 1 byte long.
+                UnsafeFastCopy(Constants.FMT_BYTES, headerData, ref position);
+                // Length of format data as listed above which is 16 bytes set as a 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(16), headerData, ref position);
+                // Type of format (1 is PCM) - 16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)1), headerData, ref position);
+                // Number of Channels -16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)channels), headerData, ref position);
+                // Sample Rate - 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(sampleRate), headerData, ref position);
+                // Bytes per second - 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(bytesPerSecond), headerData, ref position);
+                // Block align - 16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)blockAlign), headerData, ref position);
+                // Bits per sample - 16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)bitsPerSample), headerData, ref position);
+                // 'data' chunk header. Marks the beginning of the data section.
+                UnsafeFastCopy(Constants.DATA_BYTES, headerData, ref position);
+                // Size of the data section - 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(pcmDataLength), headerData, ref position);
+
+                if (position != Constants.WavHeaderSize)
+                {
+                    throw new InvalidOperationException($"WAV header size mismatch! {position} != {Constants.WavHeaderSize}");
+                }
+            }
+            catch
+            {
+                headerData.Dispose();
+                throw;
+            }
+
+            return headerData;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static unsafe void UnsafeFastCopy<T>(T[] array, NativeArray<T> dst, ref int offset) where T : unmanaged
+        {
+            var count = array.Length;
+
+            fixed (T* srcPtr = array)
+            {
+                var dstPtr = (T*)dst.GetUnsafePtr();
+                UnsafeUtility.MemCpy(dstPtr + offset, srcPtr, sizeof(T) * count);
+            }
+
+            offset += count;
         }
 
         /// <inheritdoc />
         [Preserve]
-        public async Task StreamRecordingAsync(ClipData clipData, Func<ReadOnlyMemory<byte>, Task> bufferCallback, CancellationToken cancellationToken, [CallerMemberName] string callingMethodName = null)
+        public async Task StreamRecordingAsync(
+            ClipData clipData,
+            Func<NativeArray<byte>, Task> bufferCallback,
+            Action<NativeArray<float>, int> sampleCallback,
+            CancellationToken cancellationToken,
+            [CallerMemberName] string callingMethodName = null)
         {
             if (callingMethodName != nameof(RecordingManager.StartRecordingStreamAsync))
             {
@@ -84,17 +130,24 @@ namespace Utilities.Encoding.Wav
             {
                 using var stream = new MemoryStream();
                 await using var writer = new BinaryWriter(stream);
-                WriteWavHeader(writer, clipData.Channels, clipData.OutputSampleRate);
                 writer.Flush();
-                var headerData = stream.ToArray();
+                var headerData = WriteWavHeader(clipData.Channels, clipData.OutputSampleRate);
 
-                if (headerData.Length != Constants.WavHeaderSize)
+                try
                 {
-                    Debug.LogWarning($"Failed to read all header content! {headerData.Length} != {Constants.WavHeaderSize}");
+                    if (headerData.Length != Constants.WavHeaderSize)
+                    {
+                        Debug.LogWarning($"Failed to read all header content! {headerData.Length} != {Constants.WavHeaderSize}");
+                    }
+
+                    await bufferCallback.Invoke(headerData);
+                }
+                finally
+                {
+                    headerData.Dispose();
                 }
 
-                await bufferCallback.Invoke(headerData);
-                await PCMEncoder.InternalStreamRecordAsync(clipData, null, bufferCallback, PCMEncoder.DefaultSampleProvider, cancellationToken).ConfigureAwait(false);
+                await PCMEncoder.InternalStreamRecordAsync(clipData, null, bufferCallback, sampleCallback, PCMEncoder.DefaultSampleProvider, cancellationToken).ConfigureAwait(false);
             }
             catch (Exception e)
             {
@@ -122,7 +175,12 @@ namespace Utilities.Encoding.Wav
 
         /// <inheritdoc />
         [Preserve]
-        public async Task<Tuple<string, AudioClip>> StreamSaveToDiskAsync(ClipData clipData, string saveDirectory, Action<Tuple<string, AudioClip>> callback, CancellationToken cancellationToken, [CallerMemberName] string callingMethodName = null)
+        public async Task<Tuple<string, AudioClip>> StreamSaveToDiskAsync(
+            ClipData clipData,
+            string saveDirectory,
+            Action<Tuple<string, AudioClip>> callback,
+            CancellationToken cancellationToken,
+            [CallerMemberName] string callingMethodName = null)
         {
             if (callingMethodName != nameof(RecordingManager.StartRecordingAsync))
             {
@@ -167,17 +225,25 @@ namespace Utilities.Encoding.Wav
 
                 try
                 {
-                    WriteWavHeader(writer, clipData.Channels, clipData.OutputSampleRate);
+                    var headerData = WriteWavHeader(clipData.Channels, clipData.OutputSampleRate);
+                    try
+                    {
+                        writer.Write(headerData.AsSpan());
+                    }
+                    finally
+                    {
+                        headerData.Dispose();
+                    }
 
                     try
                     {
-                        async Task BufferCallback(ReadOnlyMemory<byte> buffer)
+                        async Task BufferCallback(NativeArray<byte> buffer)
                         {
-                            writer.Write(buffer.Span);
+                            writer.Write(buffer.AsSpan()); // native array disposed by caller
                             await Task.Yield();
                         }
 
-                        (finalSamples, totalSampleCount) = await PCMEncoder.InternalStreamRecordAsync(clipData, finalSamples, BufferCallback, PCMEncoder.DefaultSampleProvider, cancellationToken).ConfigureAwait(true);
+                        (finalSamples, totalSampleCount) = await PCMEncoder.InternalStreamRecordAsync(clipData, finalSamples, BufferCallback, null, PCMEncoder.DefaultSampleProvider, cancellationToken).ConfigureAwait(true);
                     }
                     finally
                     {
@@ -265,8 +331,20 @@ namespace Utilities.Encoding.Wav
                 await using var writer = new BinaryWriter(fileStream);
                 cancellationToken.ThrowIfCancellationRequested();
                 var bitsPerSample = 8 * (int)bitDepth;
-                WriteWavHeader(writer, channels, sampleRate, bitsPerSample, pcmData.Length);
-                writer.Write(pcmData);
+                var headerData = WriteWavHeader(
+                    channels: channels,
+                    sampleRate: sampleRate,
+                    bitsPerSample: bitsPerSample,
+                    pcmDataLength: pcmData.Length);
+                try
+                {
+                    writer.Write(headerData.AsSpan());
+                    writer.Write(pcmData);
+                }
+                finally
+                {
+                    headerData.Dispose();
+                }
                 writer.Flush();
             }
             catch (Exception e)
