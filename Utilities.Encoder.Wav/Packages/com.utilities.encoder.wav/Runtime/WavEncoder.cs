@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Scripting;
 using Utilities.Async;
@@ -22,22 +23,22 @@ namespace Utilities.Encoding.Wav
         public WavEncoder() { }
 
         [Preserve]
-        internal static NativeArray<byte> EncodeWav(NativeArray<byte> pcmData, int channels, int sampleRate, int bitsPerSample = 16)
+        internal static unsafe NativeArray<byte> EncodeToWav(NativeArray<byte> pcmData, int channels, int sampleRate, int bitsPerSample = 16)
         {
-            var wavData = WriteWavHeader(channels, sampleRate, bitsPerSample, pcmData.Length);
-
             var count = pcmData.Length;
-
-            for (var i = Constants.WavHeaderSize + 1; i < count; i++)
-            {
-                wavData[i] = pcmData[i];
-            }
-
+            var wavData = WriteWavHeader(
+                channels: channels,
+                sampleRate: sampleRate,
+                bitsPerSample: bitsPerSample,
+                pcmDataLength: count,
+                allocator: Allocator.Persistent);
+            var pcmPtr = (byte*)pcmData.GetUnsafeReadOnlyPtr();
+            var wavPtr = (byte*)wavData.GetUnsafePtr();
+            UnsafeUtility.MemCpy(wavPtr + Constants.WavHeaderSize, pcmPtr, count);
             return wavData;
         }
 
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static NativeArray<byte> WriteWavHeader(int channels, int sampleRate, int bitsPerSample = 16, int pcmDataLength = 0)
+        internal static NativeArray<byte> WriteWavHeader(int channels, int sampleRate, int bitsPerSample = 16, int pcmDataLength = 0, Allocator allocator = Allocator.Temp)
         {
             // We'll calculate the file size and protect against overflow.
             int fileSize;
@@ -49,83 +50,64 @@ namespace Utilities.Encoding.Wav
                 fileSize = 36 + pcmDataLength;
             }
 
-            var headerData = new NativeArray<byte>(Constants.WavHeaderSize + pcmDataLength, Allocator.Temp);
+            var headerData = new NativeArray<byte>(Constants.WavHeaderSize + pcmDataLength, allocator);
 
-            // Marks the file as a riff file. Characters are each 1 byte long.
-            var offset = CopyData(Constants.RIFF_BYTES, headerData, 0);
-            // Size of the overall file - 8 bytes, in bytes (32-bit integer). Typically, you'd fill this in after creation.
-            offset = CopyData(BitConverter.GetBytes(fileSize - 8), headerData, offset); // Subtract the RIFF header (4 bytes) and file size field (4 bytes).
-            // File Type Header. For our purposes, it always equals 'WAVE'.
-            offset = CopyData(Constants.WAVE_BYTES, headerData, offset);
-            // Format chunk marker. Includes trailing null.
-            offset = CopyData(Constants.FMT_BYTES, headerData, offset);
-            // Length of format data as listed above.
-            offset = CopyData(BitConverter.GetBytes(16), headerData, offset);
-            // Type of format (1 is PCM) - 2 byte integer.
-            offset = CopyData(BitConverter.GetBytes((ushort)1), headerData, offset);
-            // Number of Channels - 2 byte integer.
-            offset = CopyData(BitConverter.GetBytes((ushort)channels), headerData, offset);
-            // Sample Rate - 32 byte integer.
-            offset = CopyData(BitConverter.GetBytes(sampleRate), headerData, offset);
-            // Bytes per second.
-            offset = CopyData(BitConverter.GetBytes(bytesPerSecond), headerData, offset);
-            // Block align.
-            offset = CopyData(BitConverter.GetBytes((ushort)blockAlign), headerData, offset);
-            // Bits per sample.
-            offset = CopyData(BitConverter.GetBytes((ushort)bitsPerSample), headerData, offset);
-            // 'data' chunk header. Marks the beginning of the data section.
-            offset = CopyData(Constants.DATA_BYTES, headerData, offset);
-            // Size of the data section.
-            CopyData(BitConverter.GetBytes(pcmDataLength), headerData, offset);
+            try
+            {
+                var position = 0;
+                // Marks the file as a riff file. Characters are each 1 byte long.
+                UnsafeFastCopy(Constants.RIFF_BYTES, headerData, ref position);
+                // Subtract the RIFF header (4 bytes) and file size field (4 bytes) to get a 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(fileSize - 8), headerData, ref position);
+                // File Type Header. For our purposes, it always equals 'WAVE'. Characters are each 1 byte long.
+                UnsafeFastCopy(Constants.WAVE_BYTES, headerData, ref position);
+                // Format chunk marker. Includes trailing null. Characters are each 1 byte long.
+                UnsafeFastCopy(Constants.FMT_BYTES, headerData, ref position);
+                // Length of format data as listed above which is 16 bytes set as a 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(16), headerData, ref position);
+                // Type of format (1 is PCM) - 16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)1), headerData, ref position);
+                // Number of Channels -16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)channels), headerData, ref position);
+                // Sample Rate - 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(sampleRate), headerData, ref position);
+                // Bytes per second - 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(bytesPerSecond), headerData, ref position);
+                // Block align - 16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)blockAlign), headerData, ref position);
+                // Bits per sample - 16-bit integer (2 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes((ushort)bitsPerSample), headerData, ref position);
+                // 'data' chunk header. Marks the beginning of the data section.
+                UnsafeFastCopy(Constants.DATA_BYTES, headerData, ref position);
+                // Size of the data section - 32-bit integer (4 bytes).
+                UnsafeFastCopy(BitConverter.GetBytes(pcmDataLength), headerData, ref position);
+
+                if (position != Constants.WavHeaderSize)
+                {
+                    throw new InvalidOperationException($"WAV header size mismatch! {position} != {Constants.WavHeaderSize}");
+                }
+            }
+            catch
+            {
+                headerData.Dispose();
+                throw;
+            }
 
             return headerData;
         }
 
-        /// <summary>
-        /// Copies data from a managed array to a NativeArray using unsafe code for performance.
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="array"></param>
-        /// <param name="dst"></param>
-        /// <param name="offset">
-        /// The offset (in elements) in the destination NativeArray at which to start writing.
-        /// </param>
-        /// <param name="count">
-        /// If null, copies the entire array length.
-        /// </param>
-        /// <returns>
-        /// The number count of elements copied.
-        /// </returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static unsafe int CopyData<T>(T[] array, NativeArray<T> dst, int offset, int? count = null) where T : unmanaged
+        private static unsafe void UnsafeFastCopy<T>(T[] array, NativeArray<T> dst, ref int offset) where T : unmanaged
         {
-            count ??= array.Length;
-
-            if (offset < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(offset));
-            }
-
-            if (count.Value > array.Length)
-            {
-                throw new ArgumentOutOfRangeException(nameof(count));
-            }
-
-            // Ensure the destination has enough space
-            if (offset + count.Value > dst.Length)
-            {
-                throw new ArgumentException("Destination NativeArray does not have enough space for the copy.");
-            }
+            var count = array.Length;
 
             fixed (T* srcPtr = array)
             {
                 var dstPtr = (T*)dst.GetUnsafePtr();
-                // Copy `count` elements from the start of the source array into destination at `offset`.
-                UnsafeUtility.MemCpy(dstPtr + offset, srcPtr, sizeof(T) * count.Value);
+                UnsafeUtility.MemCpy(dstPtr + offset, srcPtr, sizeof(T) * count);
             }
 
-            // Return the new destination offset (previous offset + number of elements copied)
-            return offset + count.Value;
+            offset += count;
         }
 
         /// <inheritdoc />
@@ -244,13 +226,20 @@ namespace Utilities.Encoding.Wav
                 try
                 {
                     var headerData = WriteWavHeader(clipData.Channels, clipData.OutputSampleRate);
-                    writer.Write(headerData.AsSpan());
+                    try
+                    {
+                        writer.Write(headerData.AsSpan());
+                    }
+                    finally
+                    {
+                        headerData.Dispose();
+                    }
 
                     try
                     {
                         async Task BufferCallback(NativeArray<byte> buffer)
                         {
-                            writer.Write(buffer.AsSpan());
+                            writer.Write(buffer.AsSpan()); // native array disposed by caller
                             await Task.Yield();
                         }
 
@@ -342,9 +331,20 @@ namespace Utilities.Encoding.Wav
                 await using var writer = new BinaryWriter(fileStream);
                 cancellationToken.ThrowIfCancellationRequested();
                 var bitsPerSample = 8 * (int)bitDepth;
-                var headerData = WriteWavHeader(channels, sampleRate, bitsPerSample);
-                writer.Write(headerData.AsSpan());
-                writer.Write(pcmData);
+                var headerData = WriteWavHeader(
+                    channels: channels,
+                    sampleRate: sampleRate,
+                    bitsPerSample: bitsPerSample,
+                    pcmDataLength: pcmData.Length);
+                try
+                {
+                    writer.Write(headerData.AsSpan());
+                    writer.Write(pcmData);
+                }
+                finally
+                {
+                    headerData.Dispose();
+                }
                 writer.Flush();
             }
             catch (Exception e)

@@ -30,7 +30,7 @@ namespace Utilities.Encoding.Wav
             var sampleRate = audioClip.frequency;
             var channels = audioClip.channels;
             var pcmData = audioClip.EncodeToPCM(bitDepth, trim, outputSampleRate);
-            return WavEncoder.EncodeWav(pcmData, channels, sampleRate, 8 * (int)bitDepth);
+            return WavEncoder.EncodeToWav(pcmData, channels, sampleRate, 8 * (int)bitDepth);
         }
 
         /// <summary>
@@ -63,7 +63,7 @@ namespace Utilities.Encoding.Wav
             var pcmData = audioClip.EncodeToPCM(bitDepth, trim, outputSampleRate);
             await Awaiters.BackgroundThread; // switch to background thread to prevent blocking main thread
             cancellationToken.ThrowIfCancellationRequested();
-            var encodedBytes = WavEncoder.EncodeWav(pcmData, channels, sampleRate, 8 * (int)bitDepth);
+            var encodedBytes = WavEncoder.EncodeToWav(pcmData, channels, sampleRate, 8 * (int)bitDepth);
             await Awaiters.UnityMainThread; // return to main thread before returning result
             cancellationToken.ThrowIfCancellationRequested();
             return encodedBytes;
