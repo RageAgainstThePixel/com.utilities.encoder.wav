@@ -37,7 +37,7 @@ namespace Utilities.Encoding.Wav.Tests
             var audioClip = AudioClip.Create("16bit-sine", testSamples.Length, Channels, Frequency, false);
             Assert.IsNotNull(audioClip, "Failed to create AudioClip");
 #if UNITY_6000_0_OR_NEWER
-            audioClip.SetData(samples, 0);
+            audioClip.SetData(testSamples, 0);
 #else
             audioClip.SetData(testSamples.ToArray(), 0);
 #endif
