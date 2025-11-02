@@ -3,6 +3,7 @@
 using NUnit.Framework;
 using System;
 using System.IO;
+using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 using Utilities.Audio;
@@ -22,7 +23,7 @@ namespace Utilities.Encoding.Wav.Tests
             Assert.IsTrue(File.Exists(raw8BitPcmPath), "16-bit PCM sample file not found");
 
             // Read PCM bytes
-            var pcm8BitBytes = File.ReadAllBytes(raw8BitPcmPath);
+            using var pcm8BitBytes = new NativeArray<byte>(File.ReadAllBytes(raw8BitPcmPath), Allocator.Temp);
             Assert.IsNotNull(pcm8BitBytes, "Failed to read 16-bit PCM bytes");
             Assert.IsNotEmpty(pcm8BitBytes, "16-bit PCM bytes array is empty");
 
