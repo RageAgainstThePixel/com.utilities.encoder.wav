@@ -41,6 +41,7 @@ openupm add com.utilities.encoder.wav
 - Add package from git url: `https://github.com/RageAgainstThePixel/com.utilities.encoder.wav.git#upm`
   - [com.utilities.async](https://github.com/RageAgainstThePixel/com.utilities.async)
   - [com.utilities.audio](https://github.com/RageAgainstThePixel/com.utilities.audio)
+  - [com.utilities.extensions](https://github.com/RageAgainstThePixel/com.utilities.extensions)
 
 ---
 
@@ -66,9 +67,16 @@ Supports 8, 16, 24, and 32 bit sample sizes.
 
 ### Encode WAV
 
+Encodes an `AudioClip` to a WAV formatted `byte[]` or `NativeArray<byte>`.
+
+> [!WARNING]
+> The resulting `NativeArray<byte>` must be disposed of manually to avoid memory leaks, you can adjust the allocator type by passing in an optional parameter.
+
 ```csharp
-var bytes = audioClip.EncodeToWav();
-var bytes = await audioClip.EncodeToWavAsync();
+byte[] bytes = audioClip.EncodeToWav();
+using NativeArray<byte> bytes = audioClip.EncodeToWavNative();
+byte[] bytes = await audioClip.EncodeToWavAsync();
+using NativeArray<byte> bytes = await audioClip.EncodeToWavNativeAsync();
 ```
 
 ## Related Packages
