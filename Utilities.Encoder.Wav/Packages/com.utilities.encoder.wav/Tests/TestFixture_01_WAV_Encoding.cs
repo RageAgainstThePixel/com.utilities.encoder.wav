@@ -29,7 +29,7 @@ namespace Utilities.Encoding.Wav.Tests
             Assert.IsNotEmpty(pcm8BitBytes, "16-bit PCM bytes array is empty");
 
             // Decode PCM bytes
-            var testSamples = PCMEncoder.Decode(pcm8BitBytes);
+            using var testSamples = PCMEncoder.Decode(pcm8BitBytes);
             Assert.IsNotNull(testSamples, "Failed to decode PCM bytes");
             Assert.IsNotEmpty(testSamples, "Decoded samples array is empty");
 
