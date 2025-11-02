@@ -67,14 +67,16 @@ Supports 8, 16, 24, and 32 bit sample sizes.
 
 ### Encode WAV
 
-Encodes an `AudioClip` to a WAV formatted `NativeArray<byte>`.
+Encodes an `AudioClip` to a WAV formatted `byte[]` or `NativeArray<byte>`.
 
 > [!WARNING]
 > The resulting `NativeArray<byte>` must be disposed of manually to avoid memory leaks, you can adjust the allocator type by passing in an optional parameter.
 
 ```csharp
-using NativeArray<byte> bytes = audioClip.EncodeToWav();
-using NativeArray<byte> bytes = await audioClip.EncodeToWavAsync();
+byte[] bytes = audioClip.EncodeToWav();
+using NativeArray<byte> bytes = audioClip.EncodeToWavNative();
+byte[] bytes = await audioClip.EncodeToWavAsync();
+using NativeArray<byte> bytes = await audioClip.EncodeToWavNativeAsync();
 ```
 
 ## Related Packages
