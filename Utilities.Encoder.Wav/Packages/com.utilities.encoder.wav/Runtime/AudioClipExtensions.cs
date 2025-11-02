@@ -42,7 +42,10 @@ namespace Utilities.Encoding.Wav
         /// <param name="outputSampleRate">Optional, the expected sample rate. Defaults to 44100.</param>
         /// <returns><see cref="AudioClip"/> encoded to WAV as byte array.</returns>
         public static byte[] EncodeToWav(this AudioClip audioClip, PCMFormatSize bitDepth = PCMFormatSize.SixteenBit, bool trim = false, int outputSampleRate = 44100)
-            => audioClip.EncodeToWavNative(bitDepth, trim, outputSampleRate).ToArray();
+        {
+            using var array = audioClip.EncodeToWavNative(bitDepth, trim, outputSampleRate);
+            return array.ToArray();
+        }
 
         /// <summary>
         /// Converts an <see cref="AudioClip"/> to WAV encoded memory stream.
@@ -80,7 +83,7 @@ namespace Utilities.Encoding.Wav
         /// <returns><see cref="MemoryStream"/>.</returns>
         public static async Task<byte[]> EncodeToWavAsync(this AudioClip audioClip, PCMFormatSize bitDepth = PCMFormatSize.SixteenBit, bool trim = false, int outputSampleRate = 44100, CancellationToken cancellationToken = default)
         {
-            var nativeArray = await audioClip.EncodeToWavNativeAsync(bitDepth, trim, outputSampleRate, cancellationToken).ConfigureAwait(false);
+            using var nativeArray = await audioClip.EncodeToWavNativeAsync(bitDepth, trim, outputSampleRate, cancellationToken).ConfigureAwait(false);
             return nativeArray.ToArray();
         }
     }
