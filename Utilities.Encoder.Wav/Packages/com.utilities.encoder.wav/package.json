@@ -3,7 +3,7 @@
   "displayName": "Utilities.Encoder.Wav",
   "description": "Simple library for WAV encoding support.",
   "keywords": [],
-  "version": "3.0.0",
+  "version": "3.0.1",
   "unity": "2021.3",
   "documentationUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav#documentation",
   "changelogUrl": "https://github.com/RageAgainstThePixel/com.utilities.encoder.wav/releases",
