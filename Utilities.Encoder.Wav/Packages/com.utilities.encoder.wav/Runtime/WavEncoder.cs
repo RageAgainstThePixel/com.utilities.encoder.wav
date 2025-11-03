@@ -26,15 +26,18 @@ namespace Utilities.Encoding.Wav
         internal static unsafe NativeArray<byte> EncodeToWav(NativeArray<byte> pcmData, int channels, int sampleRate, int bitsPerSample = 16)
         {
             var count = pcmData.Length;
+
             var wavData = WriteWavHeader(
                 channels: channels,
                 sampleRate: sampleRate,
                 bitsPerSample: bitsPerSample,
                 pcmDataLength: count,
                 allocator: Allocator.Persistent);
+
             var pcmPtr = (byte*)pcmData.GetUnsafeReadOnlyPtr();
             var wavPtr = (byte*)wavData.GetUnsafePtr();
             UnsafeUtility.MemCpy(wavPtr + Constants.WavHeaderSize, pcmPtr, count);
+
             return wavData;
         }
 
@@ -90,6 +93,7 @@ namespace Utilities.Encoding.Wav
             catch
             {
                 headerData.Dispose();
+
                 throw;
             }
 
@@ -159,6 +163,7 @@ namespace Utilities.Encoding.Wav
                         break;
                     default:
                         Debug.LogException(e);
+
                         break;
                 }
             }
@@ -226,6 +231,7 @@ namespace Utilities.Encoding.Wav
                 try
                 {
                     var headerData = WriteWavHeader(clipData.Channels, clipData.OutputSampleRate);
+
                     try
                     {
                         writer.Write(headerData.AsSpan());
@@ -280,6 +286,7 @@ namespace Utilities.Encoding.Wav
                             break;
                         default:
                             Debug.LogError($"[{nameof(RecordingManager)}] Failed to record clip!\n{e}");
+
                             break;
                     }
                 }
@@ -318,11 +325,27 @@ namespace Utilities.Encoding.Wav
                     Debug.Log($"[{nameof(RecordingManager)}] Finished processing...");
                 }
             }
+
             return result;
         }
 
         [Preserve]
         public static async Task WriteToFileAsync(string path, byte[] pcmData, int channels, int sampleRate, PCMFormatSize bitDepth = PCMFormatSize.SixteenBit, CancellationToken cancellationToken = default)
+        {
+            var data = new NativeArray<byte>(pcmData, Allocator.Persistent);
+
+            try
+            {
+                await WriteToFileAsync(path, data, channels, sampleRate, bitDepth, cancellationToken);
+            }
+            finally
+            {
+                data.Dispose();
+            }
+        }
+
+        [Preserve]
+        public static async Task WriteToFileAsync(string path, NativeArray<byte> pcmData, int channels, int sampleRate, PCMFormatSize bitDepth = PCMFormatSize.SixteenBit, CancellationToken cancellationToken = default)
         {
             try
             {
@@ -331,20 +354,24 @@ namespace Utilities.Encoding.Wav
                 await using var writer = new BinaryWriter(fileStream);
                 cancellationToken.ThrowIfCancellationRequested();
                 var bitsPerSample = 8 * (int)bitDepth;
+
                 var headerData = WriteWavHeader(
                     channels: channels,
                     sampleRate: sampleRate,
                     bitsPerSample: bitsPerSample,
-                    pcmDataLength: pcmData.Length);
+                    pcmDataLength: pcmData.Length,
+                    allocator: Allocator.Persistent);
+
                 try
                 {
                     writer.Write(headerData.AsSpan());
-                    writer.Write(pcmData);
+                    writer.Write(pcmData.AsSpan());
                 }
                 finally
                 {
                     headerData.Dispose();
                 }
+
                 writer.Flush();
             }
             catch (Exception e)
