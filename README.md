@@ -8,6 +8,8 @@ Simple library for WAV encoding support in the [Unity](https://unity.com/) Game 
 
 Requires Unity 2021.3 LTS or higher.
 
+CI tests the current Unity streams on pull requests, and a monthly run covers the older lines.
+
 The recommended installation method is though the unity package manager and [OpenUPM](https://openupm.com/packages/com.utilities.encoder.wav).
 
 ### Via Unity Package Manager and OpenUPM
